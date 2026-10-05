@@ -1,0 +1,12 @@
+The design phase explains how the project will work based on the requirements.
+
+Main activities:
+
+* Design the system architecture.
+* Design the database.
+* Design the user interface (UI).
+* Create flowcharts and diagrams.
+* Design system modules.
+* Decide how different components will communicate.
+
+Example: Create database tables for students, teachers, subjects, and attendance records and design the login and dashboard screens.
