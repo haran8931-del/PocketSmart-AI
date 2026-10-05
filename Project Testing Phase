@@ -1,0 +1,12 @@
+and meets the requirements.
+
+Main activities:
+
+* Find and fix errors/bugs.
+* Test individual modules.
+* Test the complete system.
+* Check user input and output.
+* Test security and performance.
+* Perform user acceptance testing.
+
+Example: Test whether a teacher can log in, mark attendance, save it correctly, and generate an accurate attendance report.
