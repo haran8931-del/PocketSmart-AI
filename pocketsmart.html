@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PocketSmart AI</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#EEF3F6;--ink:#14213D;--mut:#5B6B80;--card:#fff;--line:#D5DEE6;--acc:#0F8B8D;--bad:#C8324B;
+--c0:#0F8B8D;--c1:#F2A541;--c2:#5C6BC0;--c3:#E07A5F;--c4:#7BA05B}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Bricolage Grotesque','Segoe UI',Arial,sans-serif;line-height:1.5}
+main{max-width:860px;margin:0 auto;padding:28px 18px 60px}
+h1{font-size:clamp(2rem,6vw,3.2rem);font-weight:800;margin:0 0 4px;letter-spacing:-.02em}
+.sub{color:var(--mut);margin:0 0 24px;max-width:56ch}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:18px}
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+label{display:block;font-size:.85rem;color:var(--mut);margin-bottom:4px}
+select,input{width:100%;padding:10px 12px;font:inherit;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+button{font:inherit;font-weight:600;padding:11px 20px;border:0;border-radius:8px;background:var(--ink);color:#fff;cursor:pointer;margin-top:16px}
+button:hover{background:var(--acc)}
+.err{color:var(--bad);font-size:.9rem;margin-top:10px;min-height:1.2em}
+.bar{display:flex;height:34px;border-radius:8px;overflow:hidden;background:#E3EAF0;margin:10px 0 8px}
+.seg{height:100%;transition:width .35s}
+.tot{display:flex;flex-wrap:wrap;gap:6px 24px;font-size:.95rem}
+.tot b{font-size:1.25rem}
+.over{color:var(--bad)}.ok{color:var(--acc)}
+.row{display:grid;grid-template-columns:14px 1fr auto;gap:4px 12px;padding:14px 0;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.dot{width:14px;height:14px;border-radius:50%;margin-top:6px}
+.slot{font-weight:600}
+.meta{color:var(--mut);font-size:.88rem}
+.price{font-weight:800;font-size:1.1rem;text-align:right}
+.pick{grid-column:2/4}
+.tag{display:inline-block;font-size:.78rem;padding:1px 8px;border-radius:99px;background:#E3F3F3;color:#0A6567;margin-left:6px}
+.tag.warn{background:#FBE4E8;color:var(--bad)}
+.tips li{margin:4px 0}
+.hide{display:none}
+@media (prefers-reduced-motion:reduce){.seg{transition:none}}
+</style>
+</head>
+<body>
+<main>
+<h1>PocketSmart AI</h1>
+<p class="sub">Tell us what you're buying for and how much you can spend. We split your budget across what matters and pick the best-rated option in each slot.</p>
+
+<section class="panel">
+  <div class="controls">
+    <div><label for="cat">What are you planning?</label>
+      <select id="cat"><option value="home">Home decor</option><option value="event">Event planning</option><option value="jewelry">Jewelry shopping</option></select></div>
+    <div><label for="bud">Total budget (₹)</label><input id="bud" type="number" min="500" step="500" value="50000"></div>
+    <div><label for="pri">Priority</label>
+      <select id="pri"><option value="quality">Best quality</option><option value="balanced" selected>Balanced value</option><option value="saver">Lowest price</option></select></div>
+  </div>
+  <button id="go">Get recommendations</button>
+  <div class="err" id="err" role="alert"></div>
+</section>
+
+<section id="out" class="hide">
+  <div class="panel">
+    <div class="tot"><span>Budget <b id="tb"></b></span><span>Planned spend <b id="ts"></b></span><span>Left <b id="tl"></b></span></div>
+    <div class="bar" id="bar" aria-hidden="true"></div>
+    <div class="meta" id="verdict"></div>
+  </div>
+  <div class="panel" id="rows"></div>
+  <div class="panel"><b>Money-saving tips</b><ul class="tips" id="tips"></ul></div>
+</section>
+<p class="meta">Prices and ratings are sample data for demonstration. Connect a real product API to use live prices.</p>
+</main>
+
+<script>
+// ---------- 1. DATA: slots with budget weights; items are [name, price ₹, rating, store] ----------
+const CATALOG = {
+  home: { label:'Home decor', slots:[
+    {name:'Seating', w:35, items:[['Fabric 2-seater sofa',18500,4.3,'Flipkart'],['Cane accent chair',7200,4.1,'Amazon'],['Wooden bench with cushion',4800,3.9,'Local market'],['L-shaped sofa set',42000,4.5,'Pepperfry']]},
+    {name:'Lighting', w:15, items:[['Brass pendant lamp',3400,4.4,'Amazon'],['LED floor lamp',2100,4.0,'Flipkart'],['Fairy light set',450,3.8,'Meesho'],['Designer chandelier',11500,4.5,'Urban Ladder']]},
+    {name:'Wall art', w:15, items:[['Framed canvas set of 3',1800,4.2,'Amazon'],['Handmade Madhubani print',3200,4.6,'Craftsvilla'],['Wall mirror, round',2600,4.3,'Flipkart'],['Poster pack',350,3.7,'Meesho']]},
+    {name:'Rugs and curtains', w:20, items:[['Cotton dhurrie rug',2400,4.2,'Amazon'],['Blackout curtains, pair',1900,4.1,'Flipkart'],['Wool carpet 5x7 ft',9800,4.5,'Jaipur Rugs'],['Sheer curtains, pair',700,3.9,'Meesho']]},
+    {name:'Plants and accents', w:15, items:[['Indoor plant trio with pots',1200,4.4,'Nursery'],['Ceramic vase set',950,4.1,'Amazon'],['Artificial bonsai',600,3.8,'Flipkart'],['Terracotta planter set',800,4.3,'Local market']]}
+  ]},
+  event: { label:'Event planning', slots:[
+    {name:'Decor and venue setup', w:30, items:[['Balloon and backdrop package',6000,4.0,'Local vendor'],['Floral stage decor',18000,4.5,'Event studio'],['Fairy-light canopy setup',9500,4.3,'Local vendor'],['DIY decor kit',2500,3.8,'Amazon']]},
+    {name:'Food and catering', w:35, items:[['Veg buffet, per 50 guests',22000,4.4,'Caterer'],['Snack boxes, per 50 guests',9000,4.1,'Caterer'],['Premium multi-cuisine, per 50',35000,4.6,'Caterer'],['Homemade potluck plan',4000,3.9,'DIY']]},
+    {name:'Photography', w:20, items:[['Candid photographer, 4 hrs',12000,4.5,'Freelancer'],['Photo booth rental',5500,4.2,'Local vendor'],['Basic photographer, 2 hrs',5000,4.0,'Freelancer'],['Friend with a phone',0,3.5,'DIY']]},
+    {name:'Music and entertainment', w:10, items:[['Live band',15000,4.6,'Agency'],['DJ with sound system',8000,4.3,'Agency'],['Bluetooth speaker plus playlist',2500,3.9,'Amazon'],['Games and activities kit',1500,4.0,'Flipkart']]},
+    {name:'Invitations', w:5, items:[['Printed card set of 50',2500,4.3,'Local press'],['Digital invite design',600,4.1,'Canva/Freelancer'],['Free digital template',0,3.7,'DIY'],['Custom video invite',1800,4.4,'Freelancer']]}
+  ]},
+  jewelry: { label:'Jewelry shopping', slots:[
+    {name:'Necklace', w:35, items:[['22K gold chain, 8 g',52000,4.6,'Local jeweller'],['Kundan choker set',6500,4.3,'Myntra'],['Silver oxidised necklace',2200,4.1,'Amazon'],['Gold-plated layered chain',900,3.8,'Meesho']]},
+    {name:'Earrings', w:20, items:[['Diamond studs',18000,4.7,'Tanishq'],['Jhumka pair, gold-plated',1500,4.2,'Myntra'],['Silver hoops',1100,4.3,'Amazon'],['Fashion studs pack',300,3.7,'Meesho']]},
+    {name:'Bangles', w:25, items:[['Gold bangles pair, 20 g',130000,4.7,'Local jeweller'],['Glass bangle set',400,4.0,'Local market'],['Silver kada',5500,4.4,'Amazon'],['Lac bangles, 12 pcs',650,4.1,'Craftsvilla']]},
+    {name:'Ring', w:20, items:[['Solitaire ring',35000,4.6,'Tanishq'],['Silver gemstone ring',1800,4.2,'Amazon'],['Rose-gold plated band',700,3.9,'Myntra'],['Adjustable fashion ring',250,3.6,'Meesho']]}
+  ]}
+};
+const COLORS = ['var(--c0)','var(--c1)','var(--c2)','var(--c3)','var(--c4)'];
+const TIPS = {
+  home:['Buy lighting and accents from local markets; the price gap versus online is often 20% or more.','Compare the total price with delivery and assembly fees before you decide.','Check festival sale dates on Amazon and Flipkart before large purchases.'],
+  event:['Book vendors 6–8 weeks ahead; last-minute rates are usually higher.','Ask caterers for a per-plate quote and confirm what is included.','Weekday and daytime events often cost less than weekend evenings.'],
+  jewelry:['For gold, compare making charges across at least three jewellers.','Ask for a hallmark (BIS) certificate on gold and a bill for every piece.','Gold-plated and silver pieces suit occasional wear at a fraction of the cost.']
+};
+const inr = n => '₹' + Math.round(n).toLocaleString('en-IN');
+
+// ---------- 2. RECOMMENDATION ENGINE ----------
+// Each slot gets a share of the money still unspent, based on its weight versus the weights still to come.
+// Leftover from a cheap pick rolls forward, so later slots can afford better items.
+function score(item, priority, cap){
+  const [, price, rating] = item;
+  if (priority === 'quality') return rating * 100 + price / cap;   // best rating, then use more of the cap
+  if (priority === 'saver')   return (rating >= 4 ? 1000 : 0) - price; // decent rating, lowest price
+  return rating / Math.log(price + 20);                            // balanced: rating per rupee (log scale)
+}
+function recommend(cat, budget, priority){
+  const slots = CATALOG[cat].slots;
+  let remaining = budget;
+  return slots.map((slot, i) => {
+    const weightLeft = slots.slice(i).reduce((s, x) => s + x.w, 0);
+    const cap = remaining * slot.w / weightLeft;
+    const affordable = slot.items.filter(it => it[1] <= cap);
+    let chosen;
+    if (affordable.length) chosen = affordable.reduce((a, b) => score(b, priority, cap) > score(a, priority, cap) ? b : a);
+    else chosen = slot.items.reduce((a, b) => b[1] < a[1] ? b : a);   // nothing fits: cheapest, flagged as over cap
+    remaining -= chosen[1];
+    return {slot, cap, chosen};
+  });
+}
+
+// ---------- 3. UI ----------
+let state = {budget:0, picks:[]};
+const $ = id => document.getElementById(id);
+
+function render(){
+  const spend = state.picks.reduce((s, p) => s + p.chosen[1], 0);
+  const left = state.budget - spend;
+  $('tb').textContent = inr(state.budget);
+  $('ts').textContent = inr(spend);
+  $('tl').textContent = inr(left);
+  $('tl').className = left < 0 ? 'over' : 'ok';
+  $('bar').innerHTML = state.picks.map((p, i) =>
+    `<div class="seg" style="width:${Math.min(100, p.chosen[1] / Math.max(state.budget, spend) * 100)}%;background:${COLORS[i % 5]}" title="${p.slot.name}"></div>`).join('');
+  $('verdict').textContent = left < 0
+    ? `You are ${inr(-left)} over budget. Swap an item below for a cheaper option.`
+    : `${Math.round(spend / state.budget * 100)}% of your budget is planned. ${inr(left)} is kept as buffer.`;
+  $('verdict').className = 'meta ' + (left < 0 ? 'over' : '');
+  $('rows').innerHTML = state.picks.map((p, i) => {
+    const over = p.chosen[1] > p.cap;
+    const opts = p.slot.items.map((it, j) =>
+      `<option value="${j}" ${it === p.chosen ? 'selected' : ''}>${it[0]} (${inr(it[1])}, ${it[2]}★)</option>`).join('');
+    return `<div class="row">
+      <span class="dot" style="background:${COLORS[i % 5]}"></span>
+      <div><div class="slot">${p.slot.name}${over ? '<span class="tag warn">over suggested share</span>' : '<span class="tag">within share</span>'}</div>
+        <div class="meta">${p.chosen[0]} · ${p.chosen[2]}★ · ${p.chosen[3]} · suggested share ${inr(p.cap)}</div></div>
+      <div class="price">${inr(p.chosen[1])}</div>
+      <div class="pick"><label for="s${i}" class="meta">Swap this item</label><select id="s${i}" data-i="${i}">${opts}</select></div>
+    </div>`;
+  }).join('');
+  document.querySelectorAll('#rows select').forEach(sel => sel.onchange = e => {
+    const i = +e.target.dataset.i;
+    state.picks[i].chosen = state.picks[i].slot.items[+e.target.value];
+    render();
+  });
+}
+
+$('go').onclick = () => {
+  const cat = $('cat').value, budget = parseFloat($('bud').value), pri = $('pri').value;
+  const cheapest = CATALOG[cat].slots.reduce((s, sl) => s + Math.min(...sl.items.map(i => i[1])), 0);
+  if (!(budget >= 500)) { $('err').textContent = 'Enter a budget of at least ₹500.'; return; }
+  $('err').textContent = budget < cheapest ? `The cheapest full set costs ${inr(cheapest)}. Raise your budget or expect to go over.` : '';
+  state = {budget, picks: recommend(cat, budget, pri)};
+  $('tips').innerHTML = TIPS[cat].map(t => `<li>${t}</li>`).join('');
+  $('out').classList.remove('hide');
+  render();
+};
+</script>
+</body>
+</html>
